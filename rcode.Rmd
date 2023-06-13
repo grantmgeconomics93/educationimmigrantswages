@@ -5,6 +5,7 @@ date: "2023-06-12"
 ---
 ```{r}
 library('ipumsr')
+#y
 ```
 ```{r}
 setwd("C:/Users/gealy/OneDrive/Documents/git/educationimmigrantswages")
