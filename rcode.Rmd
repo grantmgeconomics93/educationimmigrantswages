@@ -1,0 +1,15 @@
+---
+title: "education project"
+output: git_hub document 
+date: "2023-06-12"
+---
+```{r}
+library('ipumsr')
+```
+```{r}
+setwd("C:/Users/gealy/OneDrive/Documents/git/educationimmigrantswages")
+ddi <- read_ipums_ddi("usa.xml")
+data <- read_ipums_micro(ddi)
+```
+
+
