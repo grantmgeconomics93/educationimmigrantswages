@@ -4,7 +4,8 @@ output: git_hub document
 date: "2023-06-12"
 ---
 ```{r}
-library('ipumsr')
+library(ipumsr)
+library(dplyr)
 #y
 ```
 ```{r}
@@ -12,5 +13,69 @@ setwd("C:/Users/gealy/OneDrive/Documents/git/educationimmigrantswages")
 ddi <- read_ipums_ddi("usa.xml")
 data <- read_ipums_micro(ddi)
 ```
+```{r}
+#get a smaller sample to practice because the regression is going to take longer 
+#on full dataset
+sample =sample_n(data,200000)%>%filter(AGE>=24)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)
+```
+```{r}
+#combine the states of the US into one value 
+sample$bplusone <- ifelse(sample$BPL < 150, 1, sample$BPL)
+
+```
+```{r}
+#perpare the additional variables 
+sample$wages=sample$INCWAGE/(sample$WKSWORK1*sample$UHRSWORK)
+sample$potentialexperience =sample$AGE-24
+```
+```{r}
+
+sample <- sample %>% 
+  mutate(EDUCD_recoded = case_when(
+    EDUCD %in% c(13, 14) ~ 1,  # Grade 1
+    EDUCD == 15 ~ 2,  # Grade 2
+    EDUCD == 16 ~ 3,  # Grade 3
+    EDUCD == 17 ~ 4,  # Grade 4
+    EDUCD %in% c(20, 21, 22) ~ 5,  # Grade 5
+    EDUCD %in% c(20, 21, 23) ~ 6,  # Grade 6
+    EDUCD %in% c(20, 24, 25) ~ 7,  # Grade 7
+    EDUCD %in% c(20, 24, 26) ~ 8,  # Grade 8
+    EDUCD == 30 ~ 9,  # Grade 9
+    EDUCD == 40 ~ 10,  # Grade 10
+    EDUCD == 50 ~ 11,  # Grade 11
+    EDUCD %in% c(60, 61) ~ 12,  # Grade 12
+    EDUCD %in% c(62, 63, 64) ~ 13,  # High school graduate or GED
+    EDUCD == 65 ~ 14,  # Some college, but less than 1 year
+    EDUCD %in% c(70, 71, 80, 81, 82, 83) ~ 15,  # 1 or more years of college, no degree
+    EDUCD %in% c(90, 100, 110, 113) ~ 16,  # 4 years of college
+    EDUCD == 114 ~ 17.5,  # Master's degree
+    EDUCD %in% c(115, 116) ~ 21,  # Doctoral degree
+    TRUE ~ NA_real_  # Other cases
+  ))
+
+
+```
+
+```{r}
+# Initialize an empty list to store the models
+models <- list()
+
+# Get unique countries
+countries <- unique(sample$bplusone)
+
+# Loop over each country
+for (country in countries) {
+  
+  # Subset the data for the current country
+  country_data <- subset(sample, bplusone == country)
+  
+  # Fit the model and store the variance-covariance matrix in the list
+  models[[country]] <- lm(log(wages) ~ EDUCD_recoded, data = country_data)
+}
+
+```
+
+
+
 
 
