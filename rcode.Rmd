@@ -7,6 +7,7 @@ date: "2023-06-12"
 library(ipumsr)
 library(dplyr)
 library(lmtest)
+library(fastDummies)
 library(sandwich)
 
 ```
@@ -105,24 +106,7 @@ df <- data.frame(CountryCode = country_codes, stringsAsFactors = FALSE)
 
 ```
 ```{r}
-finaldata=data%>%filter(AGE>=24)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)%>%filter(YRIMMIG==0|YRIMMIG<=1990)
-```
-```{r}
-#combine the states of the US into one value 
-finaldata$bplusone <- ifelse(finaldata$BPL < 150, 1, finaldata$BPL)
-```
-```{r}
-finaldata$SEX=ifelse(finaldata$SEX==2,0,finaldata$SEX)
-```
-
-```{r}
-#perpare the additional variables 
-finaldata$wages=finaldata$INCWAGE/(finaldata$WKSWORK1*finaldata$UHRSWORK)
-finaldata$potentialexperience =finaldata$AGE-24
-```
-```{r}
-
-finaldata <- finaldata %>% 
+data<- data %>% 
   mutate(EDUCD_recoded = case_when(
     EDUCD %in% c(13, 14) ~ 1,  # Grade 1
     EDUCD == 15 ~ 2,  # Grade 2
@@ -144,8 +128,35 @@ finaldata <- finaldata %>%
     EDUCD %in% c(115, 116) ~ 21,  # Doctoral degree
     TRUE ~ NA_real_  # Other cases
   ))
+```
+
+```{r}
+finaldata=data%>%filter(AGE>=18&AGE<66)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)%>%filter(YRIMMIG==0|AGE -(2000-YRIMMIG)<= EDUCD_recoded +6)
+```
+```{r}
+#combine the states of the US into one value 
+finaldata$bplusone <- ifelse(finaldata$BPL < 150, 1, finaldata$BPL)
+```
+```{r}
+finaldata$SEX=ifelse(finaldata$SEX==2,0,finaldata$SEX)
+```
+
+```{r}
+#perpare the additional variables 
+finaldata$wages=finaldata$INCWAGE/(finaldata$WKSWORK1*finaldata$UHRSWORK)
+finaldata$potentialexperience=finaldata$AGE-16
+```
+```{r}
+finaldata <- finaldata %>%
+  dummy_cols(select_columns = 'DISABWRK', remove_first_dummy = TRUE) %>%
+  dummy_cols(select_columns = 'REGION', remove_first_dummy = TRUE)%>%
+   dummy_cols(select_columns = 'SPEAKENG', remove_first_dummy = TRUE)
 
 ```
+
+
+
+
 ```{r}
 
 # Initialize an empty list to store the models and coeftests
@@ -170,7 +181,7 @@ for (country in countries) {
   if (sum(complete.cases(country_data)) > 0) {
     
     # Fit the model
-    bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded, data = country_data)
+  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded + DISABWRK+SEX+ potentialexperience^4 +REGION_21+REGION_22+REGION_12+REGION_31+REGION_32+REGION_33+REGION_41+REGION_42+ DISABWRK_4, data = country_data)
     
     # Perform coeftest with robust standard errors and store the result
     bigcoeftests[[length(bigcoeftests) + 1]] <- coeftest(bigmodels[[length(bigmodels)]], vcov = vcovHC(bigmodels[[length(bigmodels)]], type = "HC1"))
