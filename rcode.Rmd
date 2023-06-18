@@ -12,7 +12,7 @@ library(sandwich)
 ```
 ```{r}
 setwd("C:/Users/gealy/OneDrive/Documents/git/educationimmigrantswages")
-ddi <- read_ipums_ddi("usa.xml")
+ddi <- read_ipums_ddi("usa_00004.xml")
 data <- read_ipums_micro(ddi)
 ```
 ```{r}
@@ -105,12 +105,16 @@ df <- data.frame(CountryCode = country_codes, stringsAsFactors = FALSE)
 
 ```
 ```{r}
-finaldata=data%>%filter(AGE>=24)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)
+finaldata=data%>%filter(AGE>=24)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)%>%filter(YRIMMIG==0|YRIMMIG<=1990)
 ```
 ```{r}
 #combine the states of the US into one value 
 finaldata$bplusone <- ifelse(finaldata$BPL < 150, 1, finaldata$BPL)
 ```
+```{r}
+finaldata$SEX=ifelse(finaldata$SEX==2,0,finaldata$SEX)
+```
+
 ```{r}
 #perpare the additional variables 
 finaldata$wages=finaldata$INCWAGE/(finaldata$WKSWORK1*finaldata$UHRSWORK)
