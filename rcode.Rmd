@@ -13,125 +13,39 @@ library(sandwich)
 ```
 ```{r}
 setwd("C:/Users/gealy/OneDrive/Documents/git/educationimmigrantswages")
-ddi <- read_ipums_ddi("usa_00004.xml")
+ddi <- read_ipums_ddi("usa_00005.xml")
 data <- read_ipums_micro(ddi)
 ```
-```{r}
-#get a smaller sample to practice because the regression is going to take longer 
-#on full dataset
-sample =sample_n(data,200000)%>%filter(AGE>=24)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)
-```
-```{r}
-#combine the states of the US into one value 
-sample$bplusone <- ifelse(sample$BPL < 150, 1, sample$BPL)
 
-```
 ```{r}
-#perpare the additional variables 
-sample$wages=sample$INCWAGE/(sample$WKSWORK1*sample$UHRSWORK)
-sample$potentialexperience =sample$AGE-24
-```
-```{r}
-
-sample <- sample %>% 
+finaldata <- data %>% 
   mutate(EDUCD_recoded = case_when(
-    EDUCD %in% c(13, 14) ~ 1,  # Grade 1
-    EDUCD == 15 ~ 2,  # Grade 2
-    EDUCD == 16 ~ 3,  # Grade 3
-    EDUCD == 17 ~ 4,  # Grade 4
-    EDUCD %in% c(20, 21, 22) ~ 5,  # Grade 5
-    EDUCD %in% c(20, 21, 23) ~ 6,  # Grade 6
-    EDUCD %in% c(20, 24, 25) ~ 7,  # Grade 7
-    EDUCD %in% c(20, 24, 26) ~ 8,  # Grade 8
+    EDUCD %in% c(0, 1) ~ NA_real_,  # N/A or no schooling
+    EDUCD == 2 ~ 0,  # No schooling completed
+    EDUCD %in% 10:14 ~ 1,  # Nursery school to grade 4
+    EDUCD %in% 20:26 ~ 5,  # Grade 5, 6, 7, or 8
     EDUCD == 30 ~ 9,  # Grade 9
     EDUCD == 40 ~ 10,  # Grade 10
     EDUCD == 50 ~ 11,  # Grade 11
-    EDUCD %in% c(60, 61) ~ 12,  # Grade 12
-    EDUCD %in% c(62, 63, 64) ~ 13,  # High school graduate or GED
-    EDUCD == 65 ~ 14,  # Some college, but less than 1 year
-    EDUCD %in% c(70, 71, 80, 81, 82, 83) ~ 15,  # 1 or more years of college, no degree
-    EDUCD %in% c(90, 100, 110, 113) ~ 16,  # 4 years of college
-    EDUCD == 114 ~ 17.5,  # Master's degree
-    EDUCD %in% c(115, 116) ~ 21,  # Doctoral degree
+    EDUCD %in% 60:64 ~ 12,  # Grade 12 or High school graduate or GED
+    EDUCD == 65 ~ 12.5,  # Some college, but less than 1 year
+    EDUCD %in% 70:83 ~ 13,  # 1 year of college to Associate's degree
+    EDUCD == 90 ~ 15,  # 3 years of college
+    EDUCD %in% 100:113 ~ 16,  # 4 years of college to Bachelor's degree
+    EDUCD %in% 114:115 ~ 17.5,  # Master's degree
+    EDUCD == 116 ~ 22,  # Doctoral degree
+    EDUCD == 999 ~ NA_real_,  # Missing
     TRUE ~ NA_real_  # Other cases
   ))
 
-
 ```
 
-```{r}
-
-  # Initialize an empty list to store the models and coeftests
-models <- list()
-coeftests <- list()
-
-# Count the number of records for each country
-country_counts <- table(sample$bplusone)
-
-# Get only the countries with more than one record
-countries <- as.numeric(names(country_counts[country_counts > 1]))
-
-# Initialize a list to store the country codes
-country_codes <- c()
-
-# Loop over each country
-for (country in countries) {
-  
-  # Subset the data for the current country
-  country_data <- subset(sample, bplusone == country)
-  
-  # Check if there are any non-NA rows
-  if (sum(complete.cases(country_data)) > 0) {
-    
-    # Fit the model
-    models[[length(models) + 1]] <- lm(log(wages) ~ EDUCD_recoded, data = country_data)
-    
-    # Perform coeftest with robust standard errors and store the result
-    coeftests[[length(coeftests) + 1]] <- coeftest(models[[length(models)]], vcov = vcovHC(models[[length(models)]], type = "HC1"))
-    
-    # Store the country code
-    country_codes <- c(country_codes, country)
-  }
-}
-
-# Set the names of the models and coeftests lists
-names(models) <- country_codes
-names(coeftests) <- country_codes
-
-# Create a dataframe with country codes
-df <- data.frame(CountryCode = country_codes, stringsAsFactors = FALSE)
 
 
 
-
-```
-```{r}
-data<- data %>% 
-  mutate(EDUCD_recoded = case_when(
-    EDUCD %in% c(13, 14) ~ 1,  # Grade 1
-    EDUCD == 15 ~ 2,  # Grade 2
-    EDUCD == 16 ~ 3,  # Grade 3
-    EDUCD == 17 ~ 4,  # Grade 4
-    EDUCD %in% c(20, 21, 22) ~ 5,  # Grade 5
-    EDUCD %in% c(20, 21, 23) ~ 6,  # Grade 6
-    EDUCD %in% c(20, 24, 25) ~ 7,  # Grade 7
-    EDUCD %in% c(20, 24, 26) ~ 8,  # Grade 8
-    EDUCD == 30 ~ 9,  # Grade 9
-    EDUCD == 40 ~ 10,  # Grade 10
-    EDUCD == 50 ~ 11,  # Grade 11
-    EDUCD %in% c(60, 61) ~ 12,  # Grade 12
-    EDUCD %in% c(62, 63, 64) ~ 13,  # High school graduate or GED
-    EDUCD == 65 ~ 14,  # Some college, but less than 1 year
-    EDUCD %in% c(70, 71, 80, 81, 82, 83) ~ 15,  # 1 or more years of college, no degree
-    EDUCD %in% c(90, 100, 110, 113) ~ 16,  # 4 years of college
-    EDUCD == 114 ~ 17.5,  # Master's degree
-    EDUCD %in% c(115, 116) ~ 21,  # Doctoral degree
-    TRUE ~ NA_real_  # Other cases
-  ))
-```
 
 ```{r}
-finaldata=data%>%filter(AGE>=18&AGE<66)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>30)%>%filter(YRIMMIG==0|AGE -(2000-YRIMMIG)<= EDUCD_recoded +6)
+finaldata=finaldata%>%filter(AGE>=18&AGE<66)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>=30)%>%filter(YRIMMIG==0|AGE -(2000-YRIMMIG)<= EDUCD_recoded +6)
 ```
 ```{r}
 #combine the states of the US into one value 
@@ -148,10 +62,13 @@ finaldata$potentialexperience=finaldata$AGE-16
 ```
 ```{r}
 finaldata <- finaldata %>%
-  dummy_cols(select_columns = 'DISABWRK', remove_first_dummy = TRUE) %>%
+  dummy_cols(select_columns = 'DISABWRK') %>%
   dummy_cols(select_columns = 'REGION', remove_first_dummy = TRUE)%>%
-   dummy_cols(select_columns = 'SPEAKENG', remove_first_dummy = TRUE)
+   dummy_cols(select_columns = 'SPEAKENG', remove_first_dummy = TRUE)%>% dummy_cols(select_columns = 'METRO', remove_first_dummy = TRUE)%>%dummy_cols(select_columns = 'CITIZEN', remove_first_dummy = TRUE)
 
+```
+```{r}
+finaldata$hsgrad=ifelse(finaldata$EDUCD_recoded>1,1,0)
 ```
 
 
@@ -181,7 +98,7 @@ for (country in countries) {
   if (sum(complete.cases(country_data)) > 0) {
     
     # Fit the model
-  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded + DISABWRK+SEX+ potentialexperience^4 +REGION_21+REGION_22+REGION_12+REGION_31+REGION_32+REGION_33+REGION_41+REGION_42+ DISABWRK_4, data = country_data)
+  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded + DISABWRK+SEX+ potentialexperience^4 +REGION_21+REGION_22+REGION_12+REGION_31+REGION_32+REGION_33+REGION_41+REGION_42+ DISABWRK_1 + SPEAKENG_3 +hsgrad+ SPEAKENG_4+SPEAKENG_6+SPEAKENG_5+METRO_1+METRO_2+METRO_3+METRO_4+CITIZEN_1+CITIZEN_2+CITIZEN_3, data = country_data)
     
     # Perform coeftest with robust standard errors and store the result
     bigcoeftests[[length(bigcoeftests) + 1]] <- coeftest(bigmodels[[length(bigmodels)]], vcov = vcovHC(bigmodels[[length(bigmodels)]], type = "HC1"))
@@ -201,7 +118,210 @@ df <- data.frame(CountryCode = bigcountry_codes, stringsAsFactors = FALSE)
 
 
 ```
+```{r}
+  # Store the country codes and names as a character vector
+country_info <- c(
+  "1\tUnited States",
+  "150\tCanada",
+  "155\tSt. Pierre and Miquelon",
+  "160\tAtlantic Islands",
+  "199\tNorth America, ns",
+  "200\tMexico",
+  "210\tCentral America",
+  "250\tCuba",
+  "260\tWest Indies",
+  "299\tAmericas, n.s.",
+  "300\tSOUTH AMERICA",
+  "400\tDenmark",
+  "401\tFinland",
+  "402\tIceland",
+  "403\tLapland, n.s.",
+  "404\tNorway",
+  "405\tSweden",
+  "410\tEngland",
+  "411\tScotland",
+  "412\tWales",
+  "413\tUnited Kingdom, ns",
+  "414\tIreland",
+  "419\tNorthern Europe, ns",
+  "420\tBelgium",
+  "421\tFrance",
+  "422\tLiechtenstein",
+  "423\tLuxembourg",
+  "424\tMonaco",
+  "425\tNetherlands",
+  "426\tSwitzerland",
+  "429\tWestern Europe, ns",
+  "430\tAlbania",
+  "431\tAndorra",
+  "432\tGibraltar",
+  "433\tGreece",
+  "434\tItaly",
+  "435\tMalta",
+  "436\tPortugal",
+  "437\tSan Marino",
+  "438\tSpain",
+  "439\tVatican City",
+  "440\tSouthern Europe, ns",
+  "450\tAustria",
+  "451\tBulgaria",
+  "452\tCzechoslovakia",
+  "453\tGermany",
+  "454\tHungary",
+  "455\tPoland",
+  "456\tRomania",
+  "457\tYugoslavia",
+  "458\tCentral Europe, ns",
+  "459\tEastern Europe, ns",
+  "460\tEstonia",
+  "461\tLatvia",
+  "462\tLithuania",
+  "463\tBaltic States, ns",
+  "465\tOther USSR/Russia",
+  "499\tEurope, ns",
+  "500\tChina",
+  "501\tJapan",
+  "502\tKorea",
+  "509\tEast Asia, ns",
+  "510\tBrunei",
+  "511\tCambodia (Kampuchea)",
+  "512\tIndonesia",
+  "513\tLaos",
+  "514\tMalaysia",
+  "515\tPhilippines",
+  "516\tSingapore",
+  "517\tThailand",
+  "518\tVietnam",
+  "519\tSoutheast Asia, ns",
+  "520\tAfghanistan",
+  "521\tIndia",
+  "522\tIran",
+  "523\tMaldives",
+  "524\tNepal",
+  "530\tBahrain",
+  "531\tCyprus",
+  "532\tIraq",
+  "533\tIraq/Saudi Arabia",
+  "534\tIsrael/Palestine",
+  "535\tJordan",
+  "536\tKuwait",
+  "537\tLebanon",
+  "538\tOman",
+  "539\tQatar",
+  "540\tSaudi Arabia",
+  "541\tSyria",
+  "542\tTurkey",
+  "543\tUnited Arab Emirates",
+  "544\tYemen Arab Republic (North)",
+  "545\tYemen, PDR (South)",
+  "546\tPersian Gulf States, n.s.",
+  "547\tMiddle East, ns",
+"548\tSouthwest Asia, nec/ns",
+  "549\tAsia Minor, ns",
+  "550\tSouth Asia, nec",
+  "599\tAsia, nec/ns",
+  "600\tAFRICA",
+  "700\tAustralia and New Zealand",
+  "710\tPacific Islands",
+  "800\tAntarctica, ns/nec",
+  "900\tAbroad (unknown) or at sea",
+  "950\tOther n.e.c.",
+  "999\tMissing/blank"
+)
 
+# Split each line into a country code and name
+country_info_split <- strsplit(country_info, "\t")
+
+# Extract the country codes and names into separate vectors
+country_codes <- sapply(country_info_split, "[[", 1)
+country_names <- sapply(country_info_split, "[[", 2)
+
+# Create a dataframe with the country codes and names
+df <- data.frame(
+  CountryCode = as.numeric(country_codes),
+  CountryName = country_names,
+  stringsAsFactors = FALSE
+)
+
+```
+
+```{r}
+
+  # Initialize a list to store the confidence intervals
+ci <- list()
+
+# Initialize a list to store the coefficients
+coefs <- list()
+
+# Loop over each model
+for (i in 1:length(bigmodels)) {
+  
+  # Get the standard error for EDUCD_RECODED
+  se <- sqrt(vcovHC(bigmodels[[i]], type = "HC1")["EDUCD_recoded", "EDUCD_recoded"])
+  
+  # Get the coefficient for EDUCD_RECODED
+  coef <- bigmodels[[i]]$coefficients["EDUCD_recoded"]
+  
+  # Store the coefficient
+  coefs[[i]] <- coef
+  
+  # Calculate the confidence interval
+  ci[[i]] <- coef + c(-1, 1) * 1.96 * se
+}
+
+
+
+# Set the names of the confidence intervals and coefficients lists
+names(ci) <- bigcountry_codes
+names(coefs) <- bigcountry_codes
+
+# Sort ci, coefs, and country_info according to bigcountry_codes
+ci <- ci[match(bigcountry_codes, names(ci))]
+coefs <- coefs[match(bigcountry_codes, names(coefs))]
+
+# Get the country codes for which you have coefficients
+valid_country_codes <- names(coefs)
+
+# Split country_info into a list where each element is a vector with the country code and the country name
+country_info_split <- strsplit(country_info, "\t")
+
+# Create a named vector with country names, where the names are the country codes
+country_info <- setNames(sapply(country_info_split, `[[`, 2), sapply(country_info_split, `[[`, 1))
+
+# Now, create country_info_sorted
+country_info_sorted <- country_info[valid_country_codes]
+
+# Create your final data frame
+df2 <- data.frame(
+  CountryInfo = country_info_sorted,
+  Coefficient = unlist(coefs),
+  LowerBound = sapply(ci, "[[", 1),
+  UpperBound = sapply(ci, "[[", 2)
+)
+
+
+
+
+
+
+
+
+
+
+
+```
+```{r}
+df2$uminusl=df2$UpperBound-df2$LowerBound
+```
+```{r}
+
+df2$samplesize <- sapply(row.names(df2), function(x) {
+    idx <- which(finaldata$bplusone == x)
+    if (length(idx) == 0) NA else length(idx)
+})
+
+
+```
 
 
 
