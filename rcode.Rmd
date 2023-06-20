@@ -63,13 +63,19 @@ finaldata$potentialexperience=finaldata$AGE-16
 ```{r}
 finaldata <- finaldata %>%
   dummy_cols(select_columns = 'DISABWRK') %>%
-  dummy_cols(select_columns = 'REGION', remove_first_dummy = TRUE)%>%
-   dummy_cols(select_columns = 'SPEAKENG', remove_first_dummy = TRUE)%>% dummy_cols(select_columns = 'METRO', remove_first_dummy = TRUE)%>%dummy_cols(select_columns = 'CITIZEN', remove_first_dummy = TRUE)
+  dummy_cols(select_columns = 'REGION', remove_first_dummy = TRUE)%>%dummy_cols(select_columns = 'CITIZEN', remove_first_dummy = TRUE)
 
 ```
 ```{r}
-finaldata$hsgrad=ifelse(finaldata$EDUCD_recoded>1,1,0)
+finaldata$METROc=ifelse(finaldata$METRO==1,1,0)
 ```
+```{r}
+finaldata$SPEAKENGc=ifelse(finaldata$SPEAKENG==1|finaldata$SPEAKENG==6,1,0)
+```
+```{r}
+finaldata$CITIZENc=ifelse(finaldata$CITIZEN==1|finaldata$CLUSTER==2,1,0)
+```
+
 
 
 
@@ -98,7 +104,7 @@ for (country in countries) {
   if (sum(complete.cases(country_data)) > 0) {
     
     # Fit the model
-  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded + DISABWRK+SEX+ potentialexperience^4 +REGION_21+REGION_22+REGION_12+REGION_31+REGION_32+REGION_33+REGION_41+REGION_42+ DISABWRK_1 + SPEAKENG_3 +hsgrad+ SPEAKENG_4+SPEAKENG_6+SPEAKENG_5+METRO_1+METRO_2+METRO_3+METRO_4+CITIZEN_1+CITIZEN_2+CITIZEN_3, data = country_data)
+  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded+SEX+ potentialexperience^4+ DISABWRK_1+CITIZENc+SPEAKENGc, data = country_data)
     
     # Perform coeftest with robust standard errors and store the result
     bigcoeftests[[length(bigcoeftests) + 1]] <- coeftest(bigmodels[[length(bigmodels)]], vcov = vcovHC(bigmodels[[length(bigmodels)]], type = "HC1"))
@@ -315,13 +321,64 @@ df2$uminusl=df2$UpperBound-df2$LowerBound
 ```
 ```{r}
 
-df2$samplesize <- sapply(row.names(df2), function(x) {
-    idx <- which(finaldata$bplusone == x)
-    if (length(idx) == 0) NA else length(idx)
-})
+# Get counts of all unique values in finaldata$bplusone
+counts <- table(finaldata$bplusone)
+
+# Subselect the counts for row.names(df2)
+df2$samplesize <- counts[row.names(df2)]
+
+# Replace NA values with 0 if required
+df2$samplesize[is.na(df2$samplesize)] <- 0
 
 
 ```
+```{r}
+# Initialize a list to store the adjusted R-squared values
+  # Initialize a list to store the adjusted R-squared values
+adj_r_squared <- list()
+
+# Loop over each model
+for (i in 1:length(bigmodels)) {
+  
+  # Get the model residuals
+  residuals <- bigmodels[[i]]$residuals
+  
+  # Get the model fitted values
+  fitted <- bigmodels[[i]]$fitted.values
+  
+  # Get the specific country's wages
+  country_wages <- finaldata$wages[finaldata$bplusone == bigcountry_codes[i]]
+  
+  # Compute the total sum of squares
+  tss <- sum((country_wages - mean(country_wages))^2)
+  
+  # Compute the residual sum of squares
+  rss <- sum(residuals^2)
+  
+  # Compute R-squared
+  rsq <- 1 - rss / tss
+  
+  # Get the number of observations for the current model
+  n <- length(bigmodels[[i]]$residuals)
+  
+  # Get the number of predictors for the current model
+  p <- length(bigmodels[[i]]$coefficients) - 1  # subtract 1 for the intercept
+  
+  # Calculate the adjusted R-squared value for the current model
+  adj_r_squared[[i]] <- 1 - (1 - rsq) * (n - 1) / (n - p - 1)
+}
+
+# Set the names of the adjusted R-squared list
+names(adj_r_squared) <- bigcountry_codes
+
+# Sort adj_r_squared according to bigcountry_codes
+adj_r_squared <- adj_r_squared[match(bigcountry_codes, names(adj_r_squared))]
+
+# Add the adjusted R-squared values as a new column to the data frame
+df2$AdjRSquared <- unlist(adj_r_squared)
+
+```
+
 
 
 
