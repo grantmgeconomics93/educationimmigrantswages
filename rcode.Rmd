@@ -42,10 +42,13 @@ finaldata <- data %>%
 
 
 
+```{r}
+finaldata$potentialexperience=finaldata$AGE-16
+```
 
 
 ```{r}
-finaldata=finaldata%>%filter(AGE>=18&AGE<66)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>=30)%>%filter(YRIMMIG==0|AGE -(2000-YRIMMIG)<= EDUCD_recoded +6)
+finaldata=finaldata%>%filter(AGE>=18&AGE<66)%>%filter(UHRSWORK>29)%>%filter(INCWAGE>0)%>%filter(WKSWORK1>=30)%>%filter(YRIMMIG==0|AGE -(2000-YRIMMIG)<= EDUCD_recoded +6)%>%filter(potentialexperience<41)
 ```
 ```{r}
 #combine the states of the US into one value 
@@ -58,7 +61,7 @@ finaldata$SEX=ifelse(finaldata$SEX==2,0,finaldata$SEX)
 ```{r}
 #perpare the additional variables 
 finaldata$wages=finaldata$INCWAGE/(finaldata$WKSWORK1*finaldata$UHRSWORK)
-finaldata$potentialexperience=finaldata$AGE-16
+
 ```
 ```{r}
 finaldata <- finaldata %>%
@@ -66,6 +69,17 @@ finaldata <- finaldata %>%
   dummy_cols(select_columns = 'REGION', remove_first_dummy = TRUE)%>%dummy_cols(select_columns = 'CITIZEN', remove_first_dummy = TRUE)
 
 ```
+```{r}
+finaldata$REGION4142=ifelse(finaldata$REGION==41 |finaldata$REGION==42,1,0)
+```
+```{r}
+finaldata=finaldata %>%
+  mutate(z_scores = as.vector(scale(wages))) %>%
+   group_by(bplusone) %>%
+  filter(abs(z_scores) < 3)
+ 
+```
+
 ```{r}
 finaldata$METROc=ifelse(finaldata$METRO==1,1,0)
 ```
@@ -75,6 +89,13 @@ finaldata$SPEAKENGc=ifelse(finaldata$SPEAKENG==1|finaldata$SPEAKENG==6,1,0)
 ```{r}
 finaldata$CITIZENc=ifelse(finaldata$CITIZEN==1|finaldata$CLUSTER==2,1,0)
 ```
+```{r}
+finaldata$hsgrad=ifelse(finaldata$EDUCD_recoded<13,0,1)
+```
+```{r}
+
+```
+
 
 
 
@@ -104,7 +125,7 @@ for (country in countries) {
   if (sum(complete.cases(country_data)) > 0) {
     
     # Fit the model
-  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded+SEX+ potentialexperience^4+ DISABWRK_1+CITIZENc+SPEAKENGc, data = country_data)
+  bigmodels[[length(bigmodels) + 1]] <- lm(log(wages) ~ EDUCD_recoded+SEX+poly(potentialexperience,degree = 4,raw = T)+hsgrad, data = country_data)
     
     # Perform coeftest with robust standard errors and store the result
     bigcoeftests[[length(bigcoeftests) + 1]] <- coeftest(bigmodels[[length(bigmodels)]], vcov = vcovHC(bigmodels[[length(bigmodels)]], type = "HC1"))
